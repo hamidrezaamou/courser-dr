@@ -212,129 +212,160 @@ class AdminSettingsController extends Controller
 
     public function updatePrintTemplates(Request $request): RedirectResponse
     {
-        $types = collect(PrintTemplateEngine::types())->pluck('key')->all();
-        $rules = [
-            'templates' => ['nullable', 'array'],
-            'custom_forms' => ['nullable', 'array'],
-            'custom_forms.*.id' => ['required_with:custom_forms', 'string', 'max:64'],
-            'custom_forms.*.label' => ['required_with:custom_forms', 'string', 'max:120'],
-            'custom_forms.*.desc' => ['nullable', 'string', 'max:255'],
-            'custom_forms.*.body' => ['nullable', 'string', 'max:250000'],
-            'custom_forms.*.delete' => ['nullable', 'boolean'],
-            'template_meta' => ['nullable', 'array'],
-            'template_meta.*.mode' => ['nullable', 'in:html,overlay'],
-            'template_meta.*.subtype_ids' => ['nullable', 'array'],
-            'template_meta.*.hospital_ids' => ['nullable', 'array'],
-            'template_meta.*.sheet' => ['nullable', 'array'],
-            'template_meta.*.overlay' => ['nullable', 'array'],
-            'overlay_backgrounds' => ['nullable', 'array'],
-            'overlay_backgrounds.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:15360'],
-        ];
-        foreach ($types as $type) {
-            if (PrintTemplateEngine::isCustomType($type)) {
-                continue;
-            }
-            $rules['templates.'.$type] = ['nullable', 'string', 'max:250000'];
-            $rules['reset_'.$type] = ['nullable', 'boolean'];
-        }
+        try {
+            SiteSettings::ensureValueColumn();
 
-        $validated = $request->validate($rules);
-        $pairs = [];
-
-        foreach ($types as $type) {
-            if (PrintTemplateEngine::isCustomType($type)) {
-                continue;
-            }
-            if ($request->boolean('reset_'.$type)) {
-                $pairs[PrintTemplateEngine::settingsKey($type)] = '';
-
-                continue;
-            }
-
-            $raw = (string) ($validated['templates'][$type] ?? '');
-            if ($raw === '') {
-                continue;
-            }
-
-            $pairs[PrintTemplateEngine::settingsKey($type)] = PrintTemplateEngine::sanitizeHtml($raw);
-        }
-
-        $customForms = [];
-        foreach ($validated['custom_forms'] ?? [] as $row) {
-            if (! empty($row['delete'])) {
-                continue;
-            }
-            $id = trim((string) ($row['id'] ?? ''));
-            if ($id === '' || ! PrintTemplateEngine::isCustomType($id)) {
-                continue;
-            }
-            $body = PrintTemplateEngine::sanitizeHtml((string) ($row['body'] ?? ''));
-            if ($body === '' && isset($validated['templates'][$id])) {
-                $body = PrintTemplateEngine::sanitizeHtml((string) $validated['templates'][$id]);
-            }
-            $customForms[] = [
-                'id' => $id,
-                'label' => trim((string) ($row['label'] ?? 'فرم سفارشی')) ?: 'فرم سفارشی',
-                'desc' => trim((string) ($row['desc'] ?? '')),
-                'body' => $body,
+            $types = collect(PrintTemplateEngine::types())->pluck('key')->all();
+            $rules = [
+                'templates' => ['nullable', 'array'],
+                'custom_forms' => ['nullable', 'array'],
+                'custom_forms.*.id' => ['required_with:custom_forms', 'string', 'max:64'],
+                'custom_forms.*.label' => ['required_with:custom_forms', 'string', 'max:120'],
+                'custom_forms.*.desc' => ['nullable', 'string', 'max:255'],
+                'custom_forms.*.body' => ['nullable', 'string', 'max:250000'],
+                'custom_forms.*.delete' => ['nullable', 'boolean'],
+                'template_meta' => ['nullable', 'array'],
+                'template_meta.*.mode' => ['nullable', 'in:html,overlay'],
+                'template_meta.*.subtype_ids' => ['nullable', 'array'],
+                'template_meta.*.hospital_ids' => ['nullable', 'array'],
+                'template_meta.*.sheet' => ['nullable', 'array'],
+                'template_meta.*.overlay' => ['nullable', 'array'],
+                'overlay_backgrounds' => ['nullable', 'array'],
+                'overlay_backgrounds.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:15360'],
+                'overlay_tag_images' => ['nullable', 'array'],
+                'overlay_tag_images.*' => ['nullable', 'array'],
+                'overlay_tag_images.*.*' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif', 'max:5120'],
             ];
+            foreach ($types as $type) {
+                if (PrintTemplateEngine::isCustomType($type)) {
+                    continue;
+                }
+                $rules['templates.'.$type] = ['nullable', 'string', 'max:250000'];
+                $rules['reset_'.$type] = ['nullable', 'boolean'];
+            }
+
+            $validated = $request->validate($rules);
+            $pairs = [];
+
+            foreach ($types as $type) {
+                if (PrintTemplateEngine::isCustomType($type)) {
+                    continue;
+                }
+                if ($request->boolean('reset_'.$type)) {
+                    $pairs[PrintTemplateEngine::settingsKey($type)] = '';
+
+                    continue;
+                }
+
+                $raw = (string) ($validated['templates'][$type] ?? '');
+                if ($raw === '') {
+                    continue;
+                }
+
+                $pairs[PrintTemplateEngine::settingsKey($type)] = PrintTemplateEngine::sanitizeHtml($raw);
+            }
+
+            $customForms = [];
+            foreach ($validated['custom_forms'] ?? [] as $row) {
+                if (! empty($row['delete'])) {
+                    continue;
+                }
+                $id = trim((string) ($row['id'] ?? ''));
+                if ($id === '' || ! PrintTemplateEngine::isCustomType($id)) {
+                    continue;
+                }
+                $body = PrintTemplateEngine::sanitizeHtml((string) ($row['body'] ?? ''));
+                if ($body === '' && isset($validated['templates'][$id])) {
+                    $body = PrintTemplateEngine::sanitizeHtml((string) $validated['templates'][$id]);
+                }
+                $customForms[] = [
+                    'id' => $id,
+                    'label' => trim((string) ($row['label'] ?? 'فرم سفارشی')) ?: 'فرم سفارشی',
+                    'desc' => trim((string) ($row['desc'] ?? '')),
+                    'body' => $body,
+                ];
+            }
+
+            PrintTemplateEngine::saveCustomForms($customForms);
+
+            $metaKeys = array_unique(array_merge(
+                PrintTemplateEngine::typeKeys(),
+                array_keys($validated['template_meta'] ?? [])
+            ));
+
+            foreach ($metaKeys as $type) {
+                $rawMeta = $validated['template_meta'][$type] ?? null;
+                if (! is_array($rawMeta) || ! PrintTemplateEngine::isKnownType((string) $type)) {
+                    continue;
+                }
+
+                $existing = PrintTemplateEngine::templateMeta((string) $type);
+                $overlay = is_array($rawMeta['overlay'] ?? null) ? $rawMeta['overlay'] : $existing['overlay'];
+
+                if ($request->hasFile('overlay_backgrounds.'.$type)) {
+                    $file = $request->file('overlay_backgrounds.'.$type);
+                    $mime = (string) $file->getMimeType();
+                    $overlay['background'] = $file->store('print-backgrounds', 'public');
+                    $overlay['background_type'] = str_contains($mime, 'pdf') ? 'pdf' : 'image';
+                } elseif (isset($rawMeta['overlay']['background'])) {
+                    $overlay['background'] = trim((string) $rawMeta['overlay']['background']);
+                }
+
+                if (isset($rawMeta['overlay']['background_type'])) {
+                    $overlay['background_type'] = in_array($rawMeta['overlay']['background_type'], ['image', 'pdf'], true)
+                        ? $rawMeta['overlay']['background_type']
+                        : ($overlay['background_type'] ?? 'image');
+                }
+
+                if (isset($rawMeta['overlay']['tags'])) {
+                    $overlay['tags'] = $rawMeta['overlay']['tags'];
+                }
+
+                $tagFiles = $request->file('overlay_tag_images.'.$type);
+                if (is_array($tagFiles)) {
+                    foreach ($tagFiles as $tagIdx => $tagFile) {
+                        if (! $tagFile || ! $tagFile->isValid()) {
+                            continue;
+                        }
+                        if (! isset($overlay['tags'][$tagIdx]) || ! is_array($overlay['tags'][$tagIdx])) {
+                            continue;
+                        }
+                        $stored = $tagFile->store('print-backgrounds', 'public');
+                        $overlay['tags'][$tagIdx]['type'] = 'image';
+                        $overlay['tags'][$tagIdx]['src'] = $stored;
+                    }
+                }
+
+                PrintTemplateEngine::saveTemplateMeta((string) $type, [
+                    'mode' => $rawMeta['mode'] ?? $existing['mode'],
+                    'subtype_ids' => $rawMeta['subtype_ids'] ?? [],
+                    'hospital_ids' => $rawMeta['hospital_ids'] ?? [],
+                    'sheet' => $rawMeta['sheet'] ?? ($existing['sheet'] ?? []),
+                    'overlay' => $overlay,
+                ]);
+            }
+
+            if ($pairs !== []) {
+                SiteSettings::putMany($pairs);
+            }
+
+            $user = auth()->user();
+            if ($user) {
+                ActivityLogger::log($user, 'updated', null, [
+                    'section' => 'print_templates',
+                    'types' => array_keys($pairs),
+                    'custom_count' => count($customForms),
+                ]);
+            }
+
+            return back()->with('success', 'قالب‌های پرینت ذخیره شد.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'ذخیره قالب‌ها ناموفق بود: '.$e->getMessage());
         }
-
-        PrintTemplateEngine::saveCustomForms($customForms);
-
-        $metaKeys = array_unique(array_merge(
-            PrintTemplateEngine::typeKeys(),
-            array_keys($validated['template_meta'] ?? [])
-        ));
-
-        foreach ($metaKeys as $type) {
-            $rawMeta = $validated['template_meta'][$type] ?? null;
-            if (! is_array($rawMeta) || ! PrintTemplateEngine::isKnownType((string) $type)) {
-                continue;
-            }
-
-            $existing = PrintTemplateEngine::templateMeta((string) $type);
-            $overlay = is_array($rawMeta['overlay'] ?? null) ? $rawMeta['overlay'] : $existing['overlay'];
-
-            if ($request->hasFile('overlay_backgrounds.'.$type)) {
-                $file = $request->file('overlay_backgrounds.'.$type);
-                $mime = (string) $file->getMimeType();
-                $overlay['background'] = $file->store('print-backgrounds', 'public');
-                $overlay['background_type'] = str_contains($mime, 'pdf') ? 'pdf' : 'image';
-            } elseif (isset($rawMeta['overlay']['background'])) {
-                $overlay['background'] = trim((string) $rawMeta['overlay']['background']);
-            }
-
-            if (isset($rawMeta['overlay']['background_type'])) {
-                $overlay['background_type'] = in_array($rawMeta['overlay']['background_type'], ['image', 'pdf'], true)
-                    ? $rawMeta['overlay']['background_type']
-                    : ($overlay['background_type'] ?? 'image');
-            }
-
-            if (isset($rawMeta['overlay']['tags'])) {
-                $overlay['tags'] = $rawMeta['overlay']['tags'];
-            }
-
-            PrintTemplateEngine::saveTemplateMeta((string) $type, [
-                'mode' => $rawMeta['mode'] ?? $existing['mode'],
-                'subtype_ids' => $rawMeta['subtype_ids'] ?? [],
-                'hospital_ids' => $rawMeta['hospital_ids'] ?? [],
-                'sheet' => $rawMeta['sheet'] ?? ($existing['sheet'] ?? []),
-                'overlay' => $overlay,
-            ]);
-        }
-
-        if ($pairs !== []) {
-            SiteSettings::putMany($pairs);
-        }
-
-        ActivityLogger::log(auth()->user(), 'updated', null, [
-            'section' => 'print_templates',
-            'types' => array_keys($pairs),
-            'custom_count' => count($customForms),
-        ]);
-
-        return back()->with('success', 'قالب‌های پرینت ذخیره شد.');
     }
 
     private function deleteBrandFile(string $path): void

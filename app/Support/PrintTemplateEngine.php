@@ -344,7 +344,68 @@ HTML,
     public static function saveTemplateMeta(string $type, array $meta): void
     {
         $normalized = self::normalizeTemplateMeta($meta);
+        $normalized['overlay']['tags'] = self::persistOverlayTagImages(
+            $normalized['overlay']['tags'] ?? []
+        );
         SiteSettings::put(self::metaKey($type), json_encode($normalized, JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Store data-URI canvas images on disk so site_settings stays small.
+     *
+     * @param  list<array<string, mixed>>  $tags
+     * @return list<array<string, mixed>>
+     */
+    private static function persistOverlayTagImages(array $tags): array
+    {
+        foreach ($tags as $i => $tag) {
+            if (! is_array($tag) || ($tag['type'] ?? '') !== 'image') {
+                continue;
+            }
+            $src = trim((string) ($tag['src'] ?? ''));
+            if (! str_starts_with($src, 'data:image/')) {
+                continue;
+            }
+            $stored = self::storeDataUriImage($src);
+            if ($stored) {
+                $tags[$i]['src'] = $stored;
+            } else {
+                unset($tags[$i]);
+            }
+        }
+
+        return array_values($tags);
+    }
+
+    private static function storeDataUriImage(string $dataUri): ?string
+    {
+        if (! preg_match('#^data:image/(png|jpe?g|webp|gif);base64,#i', $dataUri, $m)) {
+            return null;
+        }
+
+        $binary = base64_decode(substr($dataUri, strpos($dataUri, ',') + 1), true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        // ~1.5MB decoded ceiling
+        if (strlen($binary) > 1500000) {
+            return null;
+        }
+
+        $ext = strtolower($m[1]);
+        if ($ext === 'jpeg') {
+            $ext = 'jpg';
+        }
+
+        try {
+            $path = 'print-backgrounds/obj_'.uniqid('', true).'.'.$ext;
+            \Illuminate\Support\Facades\Storage::disk('public')->put($path, $binary);
+
+            return $path;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

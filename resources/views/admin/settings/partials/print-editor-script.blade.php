@@ -40,6 +40,11 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
         selectedTagIdx: null,
         overlayPreviewUrls: {},
         overlayPendingFiles: {},
+        overlayZoom: 1,
+        overlayShowGrid: false,
+        overlayGuides: { v: [], h: [] },
+        editingTextIdx: null,
+        resizeHandles: ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'],
 
         init() {
             this.allTypes.forEach((t) => {
@@ -571,13 +576,159 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
                 + (tag.border ? 'border:1px solid #111;border-radius:4px;padding:4px 6px;' : 'border:0;padding:0;');
         },
 
-        editCanvasObject(idx) {
+        startEditText(idx) {
             const tag = this.metaFor(this.active).overlay.tags[idx];
             if (!tag || tag.type !== 'text') return;
             this.selectedTagIdx = idx;
-            const next = prompt('متن باکس:', tag.text || '');
-            if (next === null) return;
-            tag.text = next;
+            this.editingTextIdx = idx;
+        },
+
+        placeCaretEnd(el) {
+            try {
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                range.collapse(false);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } catch (err) {}
+        },
+
+        finishEditText(idx, e) {
+            const tag = this.metaFor(this.active).overlay.tags[idx];
+            if (tag) {
+                tag.text = (e.target.innerText || '').replace(/\n+$/, '');
+                this.dirty[this.active] = true;
+            }
+            this.editingTextIdx = null;
+            this.updatePreview();
+        },
+
+        // ---- zoom ----
+        stageWidthPx() {
+            return Math.round(440 * this.overlayZoom) + 'px';
+        },
+
+        zoomIn() {
+            this.overlayZoom = Math.min(2, Math.round((this.overlayZoom + 0.15) * 100) / 100);
+        },
+
+        zoomOut() {
+            this.overlayZoom = Math.max(0.4, Math.round((this.overlayZoom - 0.15) * 100) / 100);
+        },
+
+        zoomReset() {
+            this.overlayZoom = 1;
+        },
+
+        // ---- duplicate ----
+        duplicateSelected() {
+            const tag = this.selectedOverlayTag();
+            if (!tag) return;
+            const clone = JSON.parse(JSON.stringify(tag));
+            clone.x = Math.min(96, Number(clone.x || 0) + 3);
+            clone.y = Math.min(96, Number(clone.y || 0) + 3);
+            clone.z = (this.metaFor(this.active).overlay.tags || []).length + 1;
+            this.metaFor(this.active).overlay.tags.push(clone);
+            this.selectedTagIdx = this.metaFor(this.active).overlay.tags.length - 1;
+            this.dirty[this.active] = true;
+            this.updatePreview();
+        },
+
+        // ---- smart alignment guides while dragging ----
+        computeSnap(tag, x, y) {
+            const threshold = 1;
+            const w = Number(tag.w || 0);
+            const h = Number(tag.h || 0);
+            const guides = { v: [], h: [] };
+            const targetsX = [0, 50, 100];
+            const targetsY = [0, 50, 100];
+
+            (this.metaFor(this.active).overlay.tags || []).forEach((other) => {
+                if (other === tag || other.legacy_center) return;
+                const ow = Number(other.w || 0);
+                const oh = Number(other.h || 0);
+                targetsX.push(other.x, other.x + ow, other.x + ow / 2);
+                targetsY.push(other.y, other.y + oh, other.y + oh / 2);
+            });
+
+            let snappedX = x;
+            let snappedY = y;
+            const centerX = x + w / 2;
+            const centerY = y + h / 2;
+
+            for (const t of targetsX) {
+                if (Math.abs(x - t) < threshold) { snappedX = t; guides.v.push(t); break; }
+                if (Math.abs(centerX - t) < threshold) { snappedX = t - w / 2; guides.v.push(t); break; }
+                if (Math.abs((x + w) - t) < threshold) { snappedX = t - w; guides.v.push(t); break; }
+            }
+            for (const t of targetsY) {
+                if (Math.abs(y - t) < threshold) { snappedY = t; guides.h.push(t); break; }
+                if (Math.abs(centerY - t) < threshold) { snappedY = t - h / 2; guides.h.push(t); break; }
+                if (Math.abs((y + h) - t) < threshold) { snappedY = t - h; guides.h.push(t); break; }
+            }
+
+            return { x: snappedX, y: snappedY, guides };
+        },
+
+        // ---- layers panel ----
+        layerList() {
+            const tags = this.metaFor(this.active).overlay.tags || [];
+            return tags.map((tag, idx) => ({ idx, tag })).sort((a, b) => (b.tag.z || 1) - (a.tag.z || 1));
+        },
+
+        layerIcon(tag) {
+            const t = tag.type || 'tag';
+            if (t === 'image') return '🖼️';
+            if (t === 'text') return '📝';
+            return '🏷️';
+        },
+
+        layerLabel(tag) {
+            const t = tag.type || 'tag';
+            if (t === 'image') return 'تصویر';
+            if (t === 'text') return (tag.text || 'متن باکس').slice(0, 24);
+            const def = tagDefs.find((x) => x.key === tag.key);
+            return def ? def.label : ('{' + tag.key + '}');
+        },
+
+        selectLayer(idx) {
+            this.selectedTagIdx = idx;
+        },
+
+        moveLayerUp(idx) {
+            const list = this.layerList();
+            const pos = list.findIndex((r) => r.idx === idx);
+            if (pos <= 0) return;
+            const a = list[pos].tag;
+            const b = list[pos - 1].tag;
+            const za = a.z || 1;
+            const zb = b.z || 1;
+            a.z = zb;
+            b.z = za;
+            this.dirty[this.active] = true;
+            this.updatePreview();
+        },
+
+        moveLayerDown(idx) {
+            const list = this.layerList();
+            const pos = list.findIndex((r) => r.idx === idx);
+            if (pos < 0 || pos >= list.length - 1) return;
+            const a = list[pos].tag;
+            const b = list[pos + 1].tag;
+            const za = a.z || 1;
+            const zb = b.z || 1;
+            a.z = zb;
+            b.z = za;
+            this.dirty[this.active] = true;
+            this.updatePreview();
+        },
+
+        removeLayer(idx) {
+            const tags = this.metaFor(this.active).overlay.tags;
+            tags.splice(idx, 1);
+            if (this.selectedTagIdx === idx) this.selectedTagIdx = null;
+            else if (this.selectedTagIdx !== null && this.selectedTagIdx > idx) this.selectedTagIdx--;
             this.dirty[this.active] = true;
             this.updatePreview();
         },
@@ -676,6 +827,7 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
         },
 
         startOverlayDrag(e, idx) {
+            if (this.editingTextIdx === idx) return;
             this.selectedTagIdx = idx;
             const stage = this.$refs.overlayStage;
             if (!stage) return;
@@ -689,16 +841,19 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
             };
         },
 
-        startOverlayResize(e, idx) {
+        startOverlayResize(e, idx, dir) {
             const tag = this.metaFor(this.active).overlay.tags[idx];
             this.selectedTagIdx = idx;
             this.overlayDrag = {
                 idx,
                 mode: 'resize',
+                dir: dir || 'se',
                 startX: e.clientX,
                 startY: e.clientY,
                 startW: Number(tag.w || 20),
                 startH: Number(tag.h || 8),
+                startPX: Number(tag.x || 0),
+                startPY: Number(tag.y || 0),
                 startSize: this.clampTagSize(tag ? tag.size : 1),
                 legacy: !!tag.legacy_center,
             };
@@ -719,25 +874,56 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
                     tag.size = this.clampTagSize(this.overlayDrag.startSize + (dy / 140));
                     return;
                 }
-                const dw = ((e.clientX - this.overlayDrag.startX) / rect.width) * 100;
-                const dh = ((e.clientY - this.overlayDrag.startY) / rect.height) * 100;
-                tag.w = Math.max(4, Math.min(100 - Number(tag.x || 0), this.overlayDrag.startW + dw));
-                tag.h = Math.max(3, Math.min(100 - Number(tag.y || 0), this.overlayDrag.startH + dh));
+                const dir = this.overlayDrag.dir || 'se';
+                const dxPct = ((e.clientX - this.overlayDrag.startX) / rect.width) * 100;
+                const dyPct = ((e.clientY - this.overlayDrag.startY) / rect.height) * 100;
+                let w = this.overlayDrag.startW;
+                let h = this.overlayDrag.startH;
+                let x = this.overlayDrag.startPX;
+                let y = this.overlayDrag.startPY;
+
+                if (dir.includes('e')) w = this.overlayDrag.startW + dxPct;
+                if (dir.includes('s')) h = this.overlayDrag.startH + dyPct;
+                if (dir.includes('w')) { w = this.overlayDrag.startW - dxPct; x = this.overlayDrag.startPX + dxPct; }
+                if (dir.includes('n')) { h = this.overlayDrag.startH - dyPct; y = this.overlayDrag.startPY + dyPct; }
+
+                w = Math.max(4, w);
+                h = Math.max(3, h);
+                x = Math.max(0, Math.min(100 - 2, x));
+                y = Math.max(0, Math.min(100 - 2, y));
+                w = Math.min(w, 100 - x);
+                h = Math.min(h, 100 - y);
+
+                tag.w = Math.round(w * 10) / 10;
+                tag.h = Math.round(h * 10) / 10;
+                tag.x = Math.round(x * 10) / 10;
+                tag.y = Math.round(y * 10) / 10;
                 return;
             }
 
-            const x = ((e.clientX - rect.left) / rect.width) * 100 - (this.overlayDrag.offsetX || 0);
-            const y = ((e.clientY - rect.top) / rect.height) * 100 - (this.overlayDrag.offsetY || 0);
+            const rawX = ((e.clientX - rect.left) / rect.width) * 100 - (this.overlayDrag.offsetX || 0);
+            const rawY = ((e.clientY - rect.top) / rect.height) * 100 - (this.overlayDrag.offsetY || 0);
             const maxX = tag.legacy_center ? 100 : Math.max(0, 100 - Number(tag.w || 0));
             const maxY = tag.legacy_center ? 100 : Math.max(0, 100 - Number(tag.h || 0));
-            tag.x = Math.round(Math.max(0, Math.min(maxX, x)) * 10) / 10;
-            tag.y = Math.round(Math.max(0, Math.min(maxY, y)) * 10) / 10;
+            let x = Math.max(0, Math.min(maxX, rawX));
+            let y = Math.max(0, Math.min(maxY, rawY));
+
+            if (!tag.legacy_center) {
+                const snap = this.computeSnap(tag, x, y);
+                x = snap.x;
+                y = snap.y;
+                this.overlayGuides = snap.guides;
+            }
+
+            tag.x = Math.round(x * 10) / 10;
+            tag.y = Math.round(y * 10) / 10;
         },
 
         onOverlayDragEnd() {
             if (this.overlayDrag) {
                 this.dirty[this.active] = true;
                 this.overlayDrag = null;
+                this.overlayGuides = { v: [], h: [] };
                 this.updatePreview();
             }
         },
@@ -767,6 +953,9 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
             } else if (e.key === '-' || e.key === '_') {
                 e.preventDefault();
                 this.nudgeTagSize(-0.1);
+            } else if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                this.duplicateSelected();
             }
         },
 
@@ -933,7 +1122,13 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
                 add(prefix + '[type]', tag.type || (tag.src ? 'image' : (tag.key ? 'tag' : 'text')));
                 add(prefix + '[key]', tag.key || '');
                 add(prefix + '[text]', tag.text || '');
-                add(prefix + '[src]', tag.src || '');
+                let src = tag.src || '';
+                // Large data-URIs go as multipart files (see syncAll), not hidden fields.
+                if (typeof src === 'string' && src.indexOf('data:image/') === 0 && src.length > 4000) {
+                    this.queueOverlayTagImage(key, tidx, src);
+                    src = '';
+                }
+                add(prefix + '[src]', src);
                 add(prefix + '[x]', tag.x);
                 add(prefix + '[y]', tag.y);
                 add(prefix + '[w]', tag.w || 20);
@@ -949,6 +1144,26 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
                 add(prefix + '[z]', tag.z || 1);
                 add(prefix + '[legacy_center]', tag.legacy_center ? '1' : '0');
             });
+        },
+
+        queueOverlayTagImage(typeKey, tagIdx, dataUri) {
+            if (!this._pendingTagImages) this._pendingTagImages = {};
+            const mapKey = typeKey + '::' + tagIdx;
+            try {
+                const comma = dataUri.indexOf(',');
+                const header = dataUri.slice(0, Math.max(0, comma));
+                const b64 = dataUri.slice(comma + 1);
+                const mimeMatch = /data:(image\/[a-zA-Z0-9.+-]+)/.exec(header);
+                const mime = (mimeMatch && mimeMatch[1]) || 'image/png';
+                const bin = atob(b64);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                const ext = mime.indexOf('jpeg') >= 0 || mime.indexOf('jpg') >= 0 ? 'jpg'
+                    : (mime.indexOf('webp') >= 0 ? 'webp' : (mime.indexOf('gif') >= 0 ? 'gif' : 'png'));
+                this._pendingTagImages[mapKey] = new File([bytes], 'tag_' + tagIdx + '.' + ext, { type: mime });
+            } catch (err) {
+                console.warn('tag image queue failed', err);
+            }
         },
 
         syncAll() {
@@ -980,6 +1195,7 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
             const metaBox = document.getElementById('template-meta-hidden');
             if (metaBox) {
                 metaBox.innerHTML = '';
+                this._pendingTagImages = {};
                 this.allTypes.forEach((t) => this.appendMetaHiddenInputs(metaBox, t.key));
             }
 
@@ -1000,6 +1216,27 @@ window.printTemplateEditor = function printTemplateEditor(types, tags, templates
                             input.files = dt.files;
                         } catch (err) {
                             console.warn('File attach failed for', key, err);
+                        }
+                    }
+                    fileBox.appendChild(input);
+                });
+                Object.keys(this._pendingTagImages || {}).forEach((mapKey) => {
+                    const file = this._pendingTagImages[mapKey];
+                    if (!file) return;
+                    const parts = mapKey.split('::');
+                    const typeKey = parts[0];
+                    const tagIdx = parts[1];
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.name = 'overlay_tag_images[' + typeKey + '][' + tagIdx + ']';
+                    input.hidden = true;
+                    if (typeof DataTransfer !== 'undefined') {
+                        try {
+                            const dt = new DataTransfer();
+                            dt.items.add(file);
+                            input.files = dt.files;
+                        } catch (err) {
+                            console.warn('Tag image attach failed', mapKey, err);
                         }
                     }
                     fileBox.appendChild(input);

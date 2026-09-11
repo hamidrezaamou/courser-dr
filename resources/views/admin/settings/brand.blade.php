@@ -60,26 +60,69 @@
             .print-preview-box .print-inline-img { max-width: 100%; height: auto; }
             .print-preview-box table.print-table { width: 100%; border-collapse: collapse; }
             .print-preview-box table.print-table td { border: 1px solid #111; padding: .3rem .45rem; }
-            .print-overlay-editor { position: relative; border: 1px solid var(--line); border-radius: .75rem; background: #e5e7eb; overflow: auto; padding: .75rem; }
-            .print-overlay-editor__stage { position: relative; width: min(100%, 420px); margin: 0 auto; aspect-ratio: 210 / 297; background: #fff; box-shadow: 0 8px 28px rgba(15,23,42,.18); overflow: hidden; touch-action: none; }
+            /* ===== Overlay (slide) editor — redesigned ===== */
+            .print-overlay-toolbar { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: .75rem; background: linear-gradient(180deg,#fbfbfc,#f3f4f6); }
+            .print-overlay-toolbar .grp { display: flex; gap: .3rem; align-items: center; padding-inline-end: .55rem; margin-inline-end: .55rem; border-inline-end: 1px solid var(--line); }
+            .print-overlay-toolbar .grp:last-child { border-inline-end: 0; padding-inline-end: 0; margin-inline-end: 0; }
+            .print-overlay-toolbar button, .print-overlay-toolbar label.print-tb-file { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--line); background: #fff; border-radius: .55rem; padding: .38rem .6rem; font-size: .72rem; font-weight: 800; cursor: pointer; color: var(--ink, #111); transition: border-color .12s, background .12s; position: relative; overflow: hidden; }
+            .print-overlay-toolbar button:hover, .print-overlay-toolbar label.print-tb-file:hover { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, #fff); }
+            .print-overlay-toolbar button:disabled { opacity: .4; cursor: not-allowed; }
+            .print-overlay-toolbar button.is-danger:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2; }
+            .print-overlay-toolbar .zoom-group { gap: .2rem; }
+            .print-overlay-toolbar .zoom-group button { padding: .32rem .55rem; min-width: 1.8rem; justify-content: center; }
+            .print-overlay-toolbar .zoom-group strong { font-size: .7rem; min-width: 2.8rem; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); cursor: pointer; }
+            .print-overlay-toolbar label.switch { display: inline-flex; align-items: center; gap: .3rem; font-size: .7rem; font-weight: 700; color: var(--muted); cursor: pointer; border: 1px dashed var(--line); border-radius: .55rem; padding: .35rem .55rem; background: #fff; }
+
+            .print-overlay-workspace { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+            @@media (min-width: 900px) { .print-overlay-workspace { grid-template-columns: 1fr 210px; } }
+
+            .print-overlay-editor { position: relative; border: 1px solid var(--line); border-radius: .9rem; background: repeating-linear-gradient(45deg,#eceef1,#eceef1 10px,#e4e7eb 10px,#e4e7eb 20px); overflow: auto; padding: 1.25rem; max-height: 74vh; }
+            .print-overlay-editor__stage-wrap { display: flex; justify-content: center; min-width: max-content; }
+            .print-overlay-editor__stage { position: relative; width: 440px; flex: none; aspect-ratio: 210 / 297; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 18px 40px -12px rgba(15,23,42,.35); overflow: hidden; touch-action: none; }
+            .print-overlay-editor__stage.show-grid { background-image: linear-gradient(rgba(15,23,42,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,.06) 1px, transparent 1px); background-size: 5% 5%; }
             .print-overlay-editor__bg { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; position: absolute; inset: 0; }
             .print-overlay-editor__pdf { width: 100%; height: 100%; border: 0; pointer-events: none; position: absolute; inset: 0; }
             .print-overlay-editor__blank { position: absolute; inset: 0; background: #fff; pointer-events: none; }
-            .print-overlay-editor__obj { position: absolute; box-sizing: border-box; cursor: move; user-select: none; overflow: hidden; z-index: 2; line-height: 1.35; }
-            .print-overlay-editor__obj.is-selected { outline: 2px solid var(--brand); outline-offset: 1px; z-index: 20 !important; }
+            .print-overlay-editor__blank::after { content: 'برگه خالی — پس‌زمینه‌ای انتخاب نشده'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1rem; font-size: .68rem; font-weight: 700; color: #cbd5e1; pointer-events: none; }
+            .print-overlay-editor__obj { position: absolute; box-sizing: border-box; cursor: move; user-select: none; overflow: hidden; z-index: 2; line-height: 1.35; transition: outline-color .1s; }
+            .print-overlay-editor__obj:hover { outline: 1.5px dashed color-mix(in srgb, var(--brand) 55%, transparent); }
+            .print-overlay-editor__obj.is-selected { outline: 2px solid var(--brand); outline-offset: 1px; z-index: 20 !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
+            .print-overlay-editor__obj.is-editing { cursor: text; outline: 2px solid #059669; }
             .print-overlay-editor__obj.is-legacy { transform: translate(-50%, -50%); white-space: nowrap; width: auto !important; height: auto !important; padding: .15rem .45rem; border-radius: .35rem; background: rgba(255,255,255,.92); border: 1px dashed var(--brand); font-family: ui-monospace, monospace; }
             .print-overlay-editor__obj--image img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
             .print-overlay-editor__obj--text, .print-overlay-editor__obj--tag { display: flex; align-items: center; }
-            .print-overlay-editor__resize { position: absolute; right: -6px; bottom: -6px; width: 14px; height: 14px; border-radius: 3px; background: var(--brand); border: 2px solid #fff; cursor: nwse-resize; box-shadow: 0 0 0 1px var(--brand); }
-            .print-overlay-toolbar { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
-            .print-overlay-toolbar button, .print-overlay-toolbar label.print-tb-file { border: 1px solid var(--line); background: #fff; border-radius: .5rem; padding: .35rem .55rem; font-size: .72rem; font-weight: 800; cursor: pointer; }
+            .print-overlay-editor__obj [contenteditable="true"] { cursor: text; outline: none; width: 100%; }
+            .print-overlay-editor__handle { position: absolute; width: 11px; height: 11px; border-radius: 3px; background: #fff; border: 2px solid var(--brand); box-shadow: 0 1px 3px rgba(15,23,42,.35); z-index: 25; }
+            .print-overlay-editor__handle[data-dir="nw"] { top: -6px; left: -6px; cursor: nwse-resize; }
+            .print-overlay-editor__handle[data-dir="n"]  { top: -6px; left: 50%; margin-left: -5.5px; cursor: ns-resize; }
+            .print-overlay-editor__handle[data-dir="ne"] { top: -6px; right: -6px; cursor: nesw-resize; }
+            .print-overlay-editor__handle[data-dir="e"]  { top: 50%; right: -6px; margin-top: -5.5px; cursor: ew-resize; }
+            .print-overlay-editor__handle[data-dir="se"] { bottom: -6px; right: -6px; cursor: nwse-resize; }
+            .print-overlay-editor__handle[data-dir="s"]  { bottom: -6px; left: 50%; margin-left: -5.5px; cursor: ns-resize; }
+            .print-overlay-editor__handle[data-dir="sw"] { bottom: -6px; left: -6px; cursor: nesw-resize; }
+            .print-overlay-editor__handle[data-dir="w"]  { top: 50%; left: -6px; margin-top: -5.5px; cursor: ew-resize; }
+            .print-overlay-guide { position: absolute; background: #ec4899; z-index: 30; pointer-events: none; }
+            .print-overlay-guide--v { top: 0; bottom: 0; width: 1px; }
+            .print-overlay-guide--h { left: 0; right: 0; height: 1px; }
+
+            .print-overlay-layers { border: 1px solid var(--line); border-radius: .75rem; background: #fff; padding: .55rem; display: flex; flex-direction: column; gap: .3rem; max-height: 74vh; overflow: auto; }
+            .print-overlay-layers h4 { font-size: .7rem; font-weight: 800; color: var(--muted); margin-bottom: .1rem; }
+            .print-overlay-layer { display: flex; align-items: center; gap: .4rem; border: 1px solid var(--line); border-radius: .55rem; padding: .35rem .45rem; font-size: .7rem; cursor: pointer; background: #fff; }
+            .print-overlay-layer.is-active { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, #fff); }
+            .print-overlay-layer .ico { flex: none; width: 1.4rem; height: 1.4rem; display: flex; align-items: center; justify-content: center; border-radius: .4rem; background: #f1f5f9; font-size: .78rem; }
+            .print-overlay-layer .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+            .print-overlay-layer .acts { display: flex; gap: .1rem; flex: none; }
+            .print-overlay-layer .acts button { border: 0; background: transparent; padding: .1rem .3rem; font-size: .72rem; cursor: pointer; color: var(--muted); border-radius: .3rem; }
+            .print-overlay-layer .acts button:hover { background: #f1f5f9; color: var(--ink); }
+            .print-overlay-layers__empty { font-size: .68rem; color: var(--muted); text-align: center; padding: 1rem .5rem; }
+
             .print-overlay-inspector { border: 1px solid var(--line); border-radius: .75rem; background: #fff; padding: .65rem; display: grid; gap: .45rem; }
             .print-overlay-inspector label { display: grid; gap: .2rem; font-size: .68rem; font-weight: 800; color: var(--muted); }
             .print-overlay-inspector .field-input { min-height: 2rem; font-size: .75rem; }
             .print-overlay-size { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
             .print-overlay-size button { border: 1px solid var(--line); background: #fff; border-radius: .5rem; min-width: 2rem; padding: .2rem .45rem; font-size: .8rem; font-weight: 800; cursor: pointer; }
             .print-overlay-size strong { font-variant-numeric: tabular-nums; min-width: 3.2rem; text-align: center; font-size: .78rem; }
-            .print-overlay-editor__empty { display: none; }
+            .print-overlay-hint { font-size: .68rem; color: var(--muted); line-height: 1.7; }
             .print-subtype-box { border: 1px solid var(--line); border-radius: .75rem; padding: .65rem; background: #fff; max-height: 220px; overflow: auto; }
             .print-subtype-item { display: flex; align-items: center; gap: .4rem; font-size: .72rem; margin-bottom: .25rem; }
             .print-tag-mode { display: flex; gap: .35rem; margin-bottom: .5rem; }
@@ -317,62 +360,115 @@
                                 </label>
                             </div>
                             <div class="print-overlay-toolbar">
-                                <button type="button" @click="addCanvasText()">+ باکس متن</button>
-                                <label class="print-tb-file" style="position:relative;overflow:hidden;display:inline-flex;align-items:center">
-                                    + عکس
-                                    <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer" @change="addCanvasImage($event)">
-                                </label>
-                                <button type="button" @click="addCanvasBrand('logo')">لوگو</button>
-                                <button type="button" @click="addCanvasBrand('signature')">امضا</button>
-                                <button type="button" @click="addCanvasBrand('stamp')">مهر</button>
-                                <button type="button" @click="bringSelectedForward()" x-show="selectedTagIdx !== null">جلو</button>
-                                <button type="button" @click="sendSelectedBack()" x-show="selectedTagIdx !== null">عقب</button>
-                                <button type="button" @click="removeSelectedTag()" x-show="selectedTagIdx !== null" style="color:#b91c1c">حذف</button>
+                                <div class="grp">
+                                    <button type="button" @click="addCanvasText()">📝 متن</button>
+                                    <label class="print-tb-file">
+                                        🖼️ عکس
+                                        <input type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer" @change="addCanvasImage($event)">
+                                    </label>
+                                    <button type="button" @click="addCanvasBrand('logo')">لوگو</button>
+                                    <button type="button" @click="addCanvasBrand('signature')">امضا</button>
+                                    <button type="button" @click="addCanvasBrand('stamp')">مهر</button>
+                                </div>
+                                <div class="grp">
+                                    <button type="button" title="تکرار (Ctrl+D)" :disabled="selectedTagIdx === null" @click="duplicateSelected()">⧉ تکرار</button>
+                                    <button type="button" :disabled="selectedTagIdx === null" @click="bringSelectedForward()">جلو</button>
+                                    <button type="button" :disabled="selectedTagIdx === null" @click="sendSelectedBack()">عقب</button>
+                                    <button type="button" class="is-danger" :disabled="selectedTagIdx === null" @click="removeSelectedTag()">حذف</button>
+                                </div>
+                                <div class="grp zoom-group">
+                                    <button type="button" title="کوچک‌نمایی" @click="zoomOut()">−</button>
+                                    <strong @click="zoomReset()" title="بازنشانی به ۱۰۰٪" x-text="Math.round(overlayZoom*100)+'%'"></strong>
+                                    <button type="button" title="بزرگ‌نمایی" @click="zoomIn()">+</button>
+                                </div>
+                                <div class="grp">
+                                    <label class="switch">
+                                        <input type="checkbox" x-model="overlayShowGrid">
+                                        شبکه راهنما
+                                    </label>
+                                </div>
                             </div>
                             <div>
                                 <label class="text-xs font-bold">پس‌زمینه اختیاری (عکس / PDF فرم خالی)</label>
                                 <input type="file" class="field-input mt-1 w-full text-xs" accept="image/*,.pdf,application/pdf" @change="onOverlayFile($event)">
-                                <p class="mt-1 text-[11px]" style="color:var(--muted)">برگه سفید آماده است. باکس متن/عکس را اضافه کنید و بکشید. تگ بیمار را از سمت راست روی برگه درگ کنید.</p>
+                                <p class="print-overlay-hint mt-1">برگه را بکشید، از هندل‌های گوشه/وسط تغییر اندازه دهید — خطوط راهنمای صورتی به‌طور خودکار برای هم‌ترازی نمایش داده می‌شوند. برای ویرایش متنِ باکس، دو‌بار کلیک کنید. Ctrl+D تکرار می‌کند، Delete حذف می‌کند، فلش‌ها جابه‌جا می‌کنند.</p>
                             </div>
-                            <div class="print-overlay-editor">
-                                <div class="print-overlay-editor__stage" x-ref="overlayStage"
-                                     @dragover.prevent="onOverlayDragOver($event)"
-                                     @drop.prevent="onOverlayDrop($event)"
-                                     @click.self="selectedTagIdx = null">
-                                    <template x-if="overlayBackgroundUrl(active) && metaFor(active).overlay.background_type === 'pdf'">
-                                        <embed :src="overlayBackgroundUrl(active) + '#toolbar=0&navpanes=0'" type="application/pdf" class="print-overlay-editor__pdf">
-                                    </template>
-                                    <template x-if="overlayBackgroundUrl(active) && metaFor(active).overlay.background_type !== 'pdf'">
-                                        <img :src="overlayBackgroundUrl(active)" alt="" class="print-overlay-editor__bg">
-                                    </template>
-                                    <template x-if="!overlayBackgroundUrl(active)">
-                                        <div class="print-overlay-editor__blank"></div>
-                                    </template>
-                                    <template x-for="(tag, idx) in metaFor(active).overlay.tags" :key="active + '-obj-' + idx + '-' + (tag.type || 'tag')">
-                                        <div class="print-overlay-editor__obj"
-                                             :class="{
-                                                'is-selected': selectedTagIdx === idx,
-                                                'is-legacy': !!tag.legacy_center,
-                                                'print-overlay-editor__obj--image': (tag.type || 'tag') === 'image',
-                                                'print-overlay-editor__obj--text': (tag.type || 'tag') === 'text',
-                                                'print-overlay-editor__obj--tag': (tag.type || 'tag') === 'tag'
-                                             }"
-                                             :style="canvasObjectStyle(tag)"
-                                             @mousedown.prevent="startOverlayDrag($event, idx)"
-                                             @dblclick.stop="editCanvasObject(idx)"
-                                             @wheel.prevent="onOverlayTagWheel($event, idx)">
-                                            <template x-if="(tag.type || 'tag') === 'image'">
-                                                <img :src="canvasImageSrc(tag)" alt="">
+                            <div class="print-overlay-workspace">
+                                <div class="print-overlay-editor">
+                                    <div class="print-overlay-editor__stage-wrap">
+                                        <div class="print-overlay-editor__stage" :class="{'show-grid': overlayShowGrid}" :style="'width:' + stageWidthPx() + ';'" x-ref="overlayStage"
+                                             @dragover.prevent="onOverlayDragOver($event)"
+                                             @drop.prevent="onOverlayDrop($event)"
+                                             @click.self="selectedTagIdx = null">
+                                            <template x-if="overlayBackgroundUrl(active) && metaFor(active).overlay.background_type === 'pdf'">
+                                                <embed :src="overlayBackgroundUrl(active) + '#toolbar=0&navpanes=0'" type="application/pdf" class="print-overlay-editor__pdf">
                                             </template>
-                                            <template x-if="(tag.type || 'tag') === 'text'">
-                                                <span x-text="tag.text || 'متن'" style="white-space:pre-wrap;width:100%"></span>
+                                            <template x-if="overlayBackgroundUrl(active) && metaFor(active).overlay.background_type !== 'pdf'">
+                                                <img :src="overlayBackgroundUrl(active)" alt="" class="print-overlay-editor__bg">
                                             </template>
-                                            <template x-if="(tag.type || 'tag') === 'tag'">
-                                                <span x-text="'{' + tag.key + '}'"></span>
+                                            <template x-if="!overlayBackgroundUrl(active)">
+                                                <div class="print-overlay-editor__blank"></div>
                                             </template>
-                                            <i class="print-overlay-editor__resize" x-show="selectedTagIdx === idx" @mousedown.stop.prevent="startOverlayResize($event, idx)"></i>
+                                            <template x-for="gv in overlayGuides.v" :key="'gv-'+gv">
+                                                <div class="print-overlay-guide print-overlay-guide--v" :style="'left:'+gv+'%'"></div>
+                                            </template>
+                                            <template x-for="gh in overlayGuides.h" :key="'gh-'+gh">
+                                                <div class="print-overlay-guide print-overlay-guide--h" :style="'top:'+gh+'%'"></div>
+                                            </template>
+                                            <template x-for="(tag, idx) in metaFor(active).overlay.tags" :key="active + '-obj-' + idx + '-' + (tag.type || 'tag')">
+                                                <div class="print-overlay-editor__obj"
+                                                     :class="{
+                                                        'is-selected': selectedTagIdx === idx,
+                                                        'is-editing': editingTextIdx === idx,
+                                                        'is-legacy': !!tag.legacy_center,
+                                                        'print-overlay-editor__obj--image': (tag.type || 'tag') === 'image',
+                                                        'print-overlay-editor__obj--text': (tag.type || 'tag') === 'text',
+                                                        'print-overlay-editor__obj--tag': (tag.type || 'tag') === 'tag'
+                                                     }"
+                                                     :style="canvasObjectStyle(tag)"
+                                                     @mousedown.prevent="startOverlayDrag($event, idx)"
+                                                     @dblclick.stop="startEditText(idx)"
+                                                     @wheel.prevent="onOverlayTagWheel($event, idx)">
+                                                    <template x-if="(tag.type || 'tag') === 'image'">
+                                                        <img :src="canvasImageSrc(tag)" alt="">
+                                                    </template>
+                                                    <template x-if="(tag.type || 'tag') === 'text' && editingTextIdx !== idx">
+                                                        <span x-text="tag.text || 'متن'" style="white-space:pre-wrap;width:100%"></span>
+                                                    </template>
+                                                    <template x-if="(tag.type || 'tag') === 'text' && editingTextIdx === idx">
+                                                        <div contenteditable="true" style="white-space:pre-wrap"
+                                                             @click.stop @mousedown.stop
+                                                             @blur="finishEditText(idx, $event)"
+                                                             @keydown.escape="$event.target.blur()"
+                                                             x-init="$nextTick(() => { $el.innerText = tag.text || ''; $el.focus(); placeCaretEnd($el); })"></div>
+                                                    </template>
+                                                    <template x-if="(tag.type || 'tag') === 'tag'">
+                                                        <span x-text="'{' + tag.key + '}'"></span>
+                                                    </template>
+                                                    <template x-if="selectedTagIdx === idx && !tag.legacy_center">
+                                                        <template x-for="dir in resizeHandles" :key="'h-'+dir">
+                                                            <i class="print-overlay-editor__handle" :data-dir="dir" @mousedown.stop.prevent="startOverlayResize($event, idx, dir)"></i>
+                                                        </template>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="print-overlay-layers">
+                                    <h4>لایه‌ها (<span x-text="metaFor(active).overlay.tags.length"></span>)</h4>
+                                    <template x-for="row in layerList()" :key="'layer-'+row.idx">
+                                        <div class="print-overlay-layer" :class="{'is-active': selectedTagIdx === row.idx}" @click="selectLayer(row.idx)">
+                                            <span class="ico" x-text="layerIcon(row.tag)"></span>
+                                            <span class="lbl" x-text="layerLabel(row.tag)"></span>
+                                            <span class="acts">
+                                                <button type="button" title="جلوتر" @click.stop="moveLayerUp(row.idx)">▲</button>
+                                                <button type="button" title="عقب‌تر" @click.stop="moveLayerDown(row.idx)">▼</button>
+                                                <button type="button" title="حذف" @click.stop="removeLayer(row.idx)" style="color:#b91c1c">✕</button>
+                                            </span>
                                         </div>
                                     </template>
+                                    <p class="print-overlay-layers__empty" x-show="!metaFor(active).overlay.tags.length">هنوز آبجکتی اضافه نشده. از نوار بالا شروع کنید.</p>
                                 </div>
                             </div>
 

@@ -160,6 +160,8 @@ class SiteSettings
 
     public static function put(string $key, mixed $value): void
     {
+        self::ensureValueColumn();
+
         SiteSetting::query()->updateOrCreate(
             ['key' => $key],
             ['value' => self::encode($value)]
@@ -172,6 +174,8 @@ class SiteSettings
      */
     public static function putMany(array $pairs): void
     {
+        self::ensureValueColumn();
+
         foreach ($pairs as $key => $value) {
             SiteSetting::query()->updateOrCreate(
                 ['key' => $key],
@@ -179,6 +183,46 @@ class SiteSettings
             );
         }
         self::flush();
+    }
+
+    /**
+     * Print templates / overlay meta can exceed MySQL TEXT (64KB).
+     * Upgrade the column once so saves stop 500'ing.
+     */
+    public static function ensureValueColumn(): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+        $ensured = true;
+
+        try {
+            if (! Schema::hasTable('site_settings')) {
+                return;
+            }
+
+            $driver = Schema::getConnection()->getDriverName();
+            if (! in_array($driver, ['mysql', 'mariadb'], true)) {
+                return;
+            }
+
+            $column = collect(Schema::getConnection()->select(
+                'SHOW COLUMNS FROM site_settings WHERE Field = ?',
+                ['value']
+            ))->first();
+
+            $type = strtolower((string) ($column->Type ?? $column->type ?? ''));
+            if ($type === '' || str_contains($type, 'longtext') || str_contains($type, 'mediumtext')) {
+                return;
+            }
+
+            Schema::getConnection()->statement(
+                'ALTER TABLE site_settings MODIFY value LONGTEXT NULL'
+            );
+        } catch (Throwable) {
+            $ensured = false;
+        }
     }
 
     public static function flush(): void
