@@ -1,0 +1,58 @@
+{
+  "_comment": "Copy to config.json and fill in with the real column names from discovery.txt. config.json holds a secret, so keep it out of any shared folder.",
+
+  "website": {
+    "baseUrl": "https://example.com",
+    "agentKey": "PUT-THE-SAME-VALUE-AS-HIS_AGENT_KEY-HERE",
+    "agentSecret": "PUT-THE-SAME-VALUE-AS-HIS_AGENT_SECRET-HERE",
+    "timeoutSeconds": 120
+  },
+
+  "sql": {
+    "server": "localhost",
+    "database": "HIS",
+    "user": "",
+    "password": "",
+    "_comment": "Leave user/password empty to connect as the scheduled task's Windows account. That account only needs db_datareader."
+  },
+
+  "batchSize": 200,
+  "logRetentionDays": 14,
+
+  "_queryNotes": [
+    "Every query must return a column named his_id.",
+    "Include changed_at when the table has a modification column; the agent uses it to pick up edits, not just new rows.",
+    "@LastId and @LastChangedAt are supplied by the agent from the website's cursor. @Top is the batch size.",
+    "Dates may be nvarchar Jalali in Bina. List those columns in jalaliColumns and the agent converts them before sending.",
+    "Patient mobile column in Bina is MobileTel (not MobileNo).",
+    "Real clinic money is Accounting.CashPayment + Accounting.Payment — NOT AdmissionAccountingBundle.",
+    "PaymentType: 1=POS (کارتخوان), 2=Cash (نقد), 3=Wallet (کیف‌پول)."
+  ],
+
+  "resources": {
+    "patients": {
+      "enabled": true,
+      "jalaliColumns": [],
+      "query": "SELECT TOP (@Top) p.Id AS his_id, LTRIM(RTRIM(ISNULL(p.FirstName,N'') + N' ' + ISNULL(p.LastName,N''))) AS name, p.NationalCode AS national_code, p.MobileTel AS mobile, p.InsertDate AS changed_at FROM PID.Patient p WHERE (@LastId IS NULL OR p.Id > TRY_CAST(@LastId AS bigint)) ORDER BY p.Id ASC"
+    },
+
+    "appointments": {
+      "enabled": true,
+      "jalaliColumns": ["scheduled_date"],
+      "query": "SELECT TOP (@Top) a.Id AS his_id, a.PatientId AS his_patient_id, LTRIM(RTRIM(ISNULL(p.FirstName,N'') + N' ' + ISNULL(p.LastName,N''))) AS patient_name, p.NationalCode AS national_code, p.MobileTel AS mobile, a.AppointmentDate AS scheduled_date, a.AppointmentTime AS scheduled_time, a.Status AS status, a.Description AS reason, a.InsertDate AS changed_at FROM Plan.Appointment a JOIN PID.Patient p ON p.Id = a.PatientId WHERE (@LastId IS NULL OR a.Id > TRY_CAST(@LastId AS bigint)) ORDER BY a.Id ASC"
+    },
+
+    "visits": {
+      "enabled": true,
+      "jalaliColumns": ["visited_at"],
+      "query": "SELECT TOP (@Top) g.Id AS his_id, g.PatientId AS his_patient_id, LTRIM(RTRIM(ISNULL(p.FirstName,N'') + N' ' + ISNULL(p.LastName,N''))) AS patient_name, p.NationalCode AS national_code, p.MobileTel AS mobile, g.InsertDate AS visited_at, g.InsertDate AS changed_at FROM Admission.GeneralAdmission g JOIN PID.Patient p ON p.Id = g.PatientId WHERE (@LastId IS NULL OR g.Id > TRY_CAST(@LastId AS bigint)) ORDER BY g.Id ASC"
+    },
+
+    "finance": {
+      "enabled": true,
+      "jalaliColumns": ["transaction_date"],
+      "_comment": "One row per CashPayment/Payment. Do not use AdmissionAccountingBundle — that is not clinic cash.",
+      "query": "SELECT TOP (@Top) CAST(p.Id AS nvarchar(64)) AS his_id, CAST(a.PatientId AS nvarchar(64)) AS his_patient_id, CAST(a.Id AS nvarchar(64)) AS his_admission_id, LTRIM(RTRIM(ISNULL(pt.FirstName,N'') + N' ' + ISNULL(pt.LastName,N''))) AS patient_name, pt.NationalCode AS national_code, pt.MobileTel AS mobile, N'payment' AS type, CAST(ROUND(ISNULL(p.Amount, 0), 0) AS bigint) AS amount, CASE ISNULL(p.PaymentType, 0) WHEN 1 THEN N'pos' WHEN 2 THEN N'cash' WHEN 3 THEN N'wallet' ELSE N'other' END AS method, CASE ISNULL(p.PaymentType, 0) WHEN 1 THEN N'کارتخوان HIS' WHEN 2 THEN N'نقد HIS' WHEN 3 THEN N'کیف‌پول HIS' ELSE N'پرداخت HIS' END AS label, a.InsertDate AS transaction_date, a.InsertDate AS changed_at, CASE WHEN a.AdmissionNo IS NULL THEN NULL ELSE N'پذیرش ' + CAST(a.AdmissionNo AS nvarchar(64)) END AS notes FROM Accounting.Payment p INNER JOIN Accounting.CashPayment cp ON cp.PaymentId = p.Id INNER JOIN Admission.GeneralAdmission a ON a.Id = cp.AdmissionId INNER JOIN PID.Patient pt ON pt.Id = a.PatientId WHERE cp.AdmissionId IS NOT NULL AND ISNULL(p.Amount, 0) > 0 AND (@LastId IS NULL OR p.Id > TRY_CAST(@LastId AS bigint)) ORDER BY p.Id ASC"
+    }
+  }
+}

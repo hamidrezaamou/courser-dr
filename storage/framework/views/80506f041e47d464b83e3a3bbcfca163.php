@@ -1,0 +1,2 @@
+<a <?php echo e($attributes->merge(['class' => 'dropdown-link'])); ?>><?php echo e($slot); ?></a>
+<?php /**PATH C:\Users\elahe\Downloads\Compressed\app_3\resources\views\components\dropdown-link.blade.php ENDPATH**/ ?>

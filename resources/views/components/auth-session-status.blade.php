@@ -1,0 +1,10 @@
+@props(['status'])
+
+@if ($status)
+    <div {{ $attributes->merge(['class' => 'flash flash--success']) }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        <span class="flash__body">{{ $status }}</span>
+    </div>
+@endif

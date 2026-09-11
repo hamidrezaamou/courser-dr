@@ -1,0 +1,6 @@
+{
+  "name": "آرشیو بیمار",
+  "description": "سامانه مدیریت پرونده و نوبت‌دهی درمانگاه",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

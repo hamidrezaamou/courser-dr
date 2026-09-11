@@ -1,0 +1,3 @@
+<?php echo $__env->make('dashboard.partials.results-head', ['patients' => $patients, 'search' => $search, 'stats' => $stats], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php echo $__env->make('dashboard.partials.results-body', ['patients' => $patients, 'search' => $search], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+<?php /**PATH C:\Users\elahe\Downloads\Compressed\app_3\resources\views\dashboard\partials\results.blade.php ENDPATH**/ ?>

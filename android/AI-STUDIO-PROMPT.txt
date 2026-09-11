@@ -1,0 +1,96 @@
+Build a native Android app (Kotlin + Jetpack Compose + Material 3, single-activity).
+Do NOT wrap a website in a WebView. This is a custom professional clinic app.
+
+App name: آرشیو بیمار
+Package: ir.mramo.archive
+Language: Persian, RTL (LayoutDirection.Rtl). All UI text in Persian.
+Brand colors: primary #4F86BE, dark #2F5F8C, soft #EDF5FC, ink #2A425A, mint #2A9D8F, surface #F3F8FD.
+
+BACKEND (already live on the clinic host — call it with HTTPS Retrofit/OkHttp):
+Base URL: https://mramo.ir/api/mobile/v1/
+Auth: POST login returns { token, user, clinic }. Then send header:
+  Authorization: Bearer <token>
+  Accept: application/json
+Store token in DataStore. Default site URL must be editable on the login screen.
+
+LOGIN
+POST /login
+JSON body: { "national_code": "10 digits", "password": "...", "device_name": "android" }
+Success: { ok, token, user, clinic }
+user fields: id, name, national_code, mobile, role, role_label, is_staff, can_manage_clinical, can_edit_patient
+clinic fields: name, doctor_name, phone, clinic_label
+Errors: JSON { message } or { errors: { national_code: ["..."] } } — show Persian message.
+
+AFTER LOGIN
+GET /home  → stats[], today_jalali, today_visits[], today_surgeries[] (staff)
+GET /me
+POST /logout
+
+STAFF SCREENS (if user.is_staff):
+Bottom nav: خانه | بیماران | بُرد | حساب
+
+1) Home: greeting, clinic name, date jalali, stat tiles, lists of today's visits and surgeries. Pull to refresh.
+
+2) Patients:
+GET /patients?q=
+Cards: name, national_code, mobile, age
+FAB create patient:
+POST /patients { name, national_code, mobile, age }
+Open file:
+GET /patients/{id} → patient + timeline[]
+timeline item: { id, type, payload }
+types: visit, appointment, surgery, note, document, prescription
+Actions: Dial tel:{mobile}, book visit, book surgery, exam (only if can_manage_clinical)
+
+3) Board:
+GET /board?kind=visit|surgery&date=YYYY/MM/DD (Jalali like 1404/06/15)
+Response: date, today, tomorrow, stats, items[]
+Each item: patient_name, title, scheduled_time_label, status_label, status, locked, actions[{id,label,hint}], kind, id, patient_id
+Change status:
+PATCH /appointments/{id}/status { "status": "confirmed" }
+PATCH /surgery-appointments/{id}/status { "status": "waiting" }
+Confirm with a dialog using action.hint
+
+4) Book visit for a patient:
+GET /visit-calendar → { days: { "1404/06/15": { total, booked, free, status } } }
+GET /slots?date=1404/06/15&kind=visit → { slots: [{ value, label, booked, bookable }] }
+POST /patients/{id}/visits
+{
+  "patient_name", "national_code", "mobile", "age",
+  "visit_type": "ویزیت",
+  "scheduled_date": "1404/06/15",
+  "scheduled_time": "<slot value>"
+}
+
+5) Book surgery:
+GET /hospitals
+GET /surgery-options?hospital_id=
+GET /surgery-options?hospital_id=&surgery_type_id=
+GET /slots?date=&kind=surgery&hospital_id=&surgery_type_id=&surgery_subtype_id=
+POST /patients/{id}/surgeries
+{
+  "patient_name","national_code","mobile","age",
+  "hospital_id", "surgery_type", "surgery_type_id", "surgery_subtype_id",
+  "eye_side": "OD"|"OS"|"OU",
+  "scheduled_date", "scheduled_time"
+}
+Flow: hospital → type → subtype or عمومی → day chips → slot chips → eye OD/OS/OU → save
+
+6) Exam (doctor/admin only):
+POST /patients/{id}/exams
+{ examination, diagnosis, treatment, next_instruction, eye_side, va_right, va_left, iop_right, iop_left }
+
+7) Account: show name/role, editable base URL field (default https://mramo.ir), logout.
+
+PATIENT ROLE (is_staff=false): only Home + own file GET /me/profile + logout. Hide staff tabs.
+
+UI RULES
+- Premium medical, not a default Material template
+- Rounded 20dp cards, soft shadows, status chips (confirmed green, waiting amber, cancelled warm)
+- Phone emulator friendly, no landscape-only layouts
+- Never use WebView
+- If HTTP 401, clear token and go to login
+- Timeouts 25s, show Persian errors
+- Do not invent extra fake/demo data. Empty states in Persian.
+
+Build the full compiling app now and run it in the emulator.
